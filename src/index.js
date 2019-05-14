@@ -40,12 +40,12 @@ async function votes(assetCode, assetIssuer) {
  * @returns {Promise<{up: Promise<*>, down: Promise<*>}>}
  */
 async function votingAddresses(assetCode, assetIssuer) {
-    const mnemonics = await Promise.all([
-        _mnemonic(assetCode, assetIssuer, VOTE_UP_TYPE),
-        _mnemonic(assetCode, assetIssuer, VOTE_DOWN_TYPE)
+    const wallets = await Promise.all([
+        hdWallet(assetCode, assetIssuer, VOTE_UP_TYPE),
+        hdWallet(assetCode, assetIssuer, VOTE_DOWN_TYPE)
     ]);
-    const walletUp = StellarHDWallet.fromMnemonic(mnemonics[0]);
-    const walletDown = StellarHDWallet.fromMnemonic(mnemonics[0]);
+    const walletUp = wallets[0];
+    const walletDown = wallets[1];
 
     const up = _addressFromWallet(walletUp, assetCode, assetIssuer);
     const down = _addressFromWallet(walletDown, assetCode, assetIssuer);
@@ -108,8 +108,7 @@ function isActive(account, assetCode, assetIssuer) {
  * @returns {Promise<Array>}
  */
 async function activeVotingAddresses(assetCode, assetIssuer, type) {
-    const mnemonic = await _mnemonic(assetCode, assetIssuer, type);
-    const wallet = StellarHDWallet.fromMnemonic(mnemonic);
+    const wallet = await hdWallet(assetCode, assetIssuer, type);
     let lastAccountWasFunded = true;
     let index = 0;
     let addresses = [];
@@ -133,8 +132,7 @@ async function activeVotingAddresses(assetCode, assetIssuer, type) {
  * @returns {Promise<Array>}
  */
 async function validVotingAddresses(assetCode, assetIssuer, type) {
-    const mnemonic = await _mnemonic(assetCode, assetIssuer, type);
-    const wallet = StellarHDWallet.fromMnemonic(mnemonic);
+    const wallet = await hdWallet(assetCode, assetIssuer, type);
     let lastAccountWasFunded = true;
     let index = 0;
     let addresses = [];
@@ -148,34 +146,21 @@ async function validVotingAddresses(assetCode, assetIssuer, type) {
 }
 
 /**
- * Returns the mnemonic for an asset.
+ * Returns the hdWallet for an asset.
  * @param assetCode
  * @param assetIssuer
  * @param type
  * @returns {Promise<*>}
  */
-async function mnemonic(assetCode, assetIssuer, type) {
-    let entropy = assetIssuer + assetCode + type;
-    let missing = 64 - entropy.length;
-
-    if (missing > 0) {
-        entropy = entropy.substring(0, missing) + entropy;
-    }
-    else if (missing < 0) {
-        entropy = entropy.substring(Math.abs(missing));
-    }
-
-    return StellarHDWallet.generateMnemonic({
-        entropyBits: 512,
-        rng: () => {
-            return Buffer.from(entropy).toString('hex')
-        }
-    });
+function hdWallet(assetCode, assetIssuer, type) {
+    const rawIssuer = StrKey.decodeEd25519PublicKey(assetIssuer).toString('hex');
+    const rawCode = Buffer.from(assetCode).toString('hex');
+    const rawType = '0' + type;
+    return new StellarHDWallet(rawIssuer + rawCode + rawType);
 }
 
 async function _votes(assetCode, assetIssuer, type) {
-    const mnemonic = await _mnemonic(assetCode, assetIssuer, type);
-    const wallet = StellarHDWallet.fromMnemonic(mnemonic);
+    const wallet = await hdWallet(assetCode, assetIssuer, type);
     let lastAccountWasFunded = true;
     let index = 0;
     let sum = 0;
@@ -217,5 +202,5 @@ export const SDAR = {
     isActive,
     activeVotingAddresses,
     validVotingAddresses,
-    mnemonic
+    hdWallet
 };
